@@ -51,6 +51,14 @@ shinyUI(fluidPage(
       ),
       conditionalPanel(
         condition = "input.tabs == 'Data Exploration'",
+        checkboxGroupInput("plots", "Select Plots to Display:", 
+                           choices = c("Observed Data" = "datatab",
+                                       "Summary Stats Table" = "contingency",
+                                       "Bar Plot" = "bar", 
+                                       "Box Plot" = "box", 
+                                       "Correlation Plot" = "corr",
+                                       "Heatmap" = "heatmap"
+                           )),
         selectInput("family", "Select Family:", choices = c("All", unique(data$family))),
         actionButton("plot_button", "Generate Plots")
       )
@@ -80,10 +88,7 @@ shinyUI(fluidPage(
         tabPanel("Data Exploration",
                  conditionalPanel(
                    condition = "input.plot_button > 0",
-                   plotOutput("barPlot"),
-                   plotOutput("boxPlot"),
-                   plotOutput("corrPlot"),
-                   textOutput("warningText")
+                   uiOutput("selectedPlots")
                  )
         )
       )

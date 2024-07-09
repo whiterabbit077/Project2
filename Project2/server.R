@@ -139,8 +139,7 @@ shinyServer(function(input, output) {
     
     if (!is.null(data_df)) {
       data_df <- data_df %>%
-        unnest_wider(nutritions) %>%
-        filter(name != "Hazelnut")
+        unnest_wider(nutritions) 
       data(data_df)
     } else {
       showModal(modalDialog(
@@ -171,9 +170,39 @@ shinyServer(function(input, output) {
     }
   })
   
+  output$selectedPlots <- renderUI({
+    input$plot_button
+    isolate({
+      plots <- input$plots
+      plotOutputs <- list()
+      
+      if ("bar" %in% plots) {
+        plotOutputs <- c(plotOutputs, list(plotOutput("barPlot")))
+      }
+      if ("box" %in% plots) {
+        plotOutputs <- c(plotOutputs, list(plotOutput("boxPlot")))
+      }
+      if ("corr" %in% plots) {
+        plotOutputs <- c(plotOutputs, list(plotOutput("corrPlot")))
+      }
+      if ("heatmap" %in% plots) {
+        plotOutputs <- c(plotOutputs, list(plotOutput("heatmapPlot")))
+      }
+      if ("contingency" %in% plots) {
+        plotOutputs <- c(plotOutputs, list(tableOutput("contingencyTable")))
+      }
+      if ("datatab" %in% plots) {
+        plotOutputs <- c(plotOutputs, list(DTOutput("dataTable")))
+      }
+      
+      plotOutputs
+    })
+  })
+  
   output$barPlot <- renderPlot({
     input$plot_button
     isolate({
+      req("bar" %in% input$plots)
       df <- data_filtered()
       melted_data <- melt(df, id.vars = c("name", "id", "family", "order", "genus"))
       nutrition_data <- melted_data[melted_data$variable %in% c("calories", "fat", "sugar", "carbohydrates", "protein"),]
@@ -183,14 +212,14 @@ shinyServer(function(input, output) {
         geom_bar(stat = "identity") +
         labs(title = "Nutritional Composition of Fruits", x = "Fruit", y = "Nutritional Value") +
         theme_minimal() +
-        coord_flip() +
-        facet_wrap(~ family, scales = "free_x")
+        coord_flip()
     })
   })
   
   output$boxPlot <- renderPlot({
     input$plot_button
     isolate({
+      req("box" %in% input$plots)
       df <- data_filtered()
       melted_data <- melt(df, id.vars = c("name", "id", "family", "order", "genus"))
       nutrition_data <- melted_data[melted_data$variable %in% c("calories", "fat", "sugar", "carbohydrates", "protein"),]
@@ -206,6 +235,7 @@ shinyServer(function(input, output) {
   output$corrPlot <- renderPlot({
     input$plot_button
     isolate({
+      req("corr" %in% input$plots)
       df <- data_filtered()
       if (nrow(df) > 1) {
         numeric_data <- df %>% select(calories, fat, sugar, carbohydrates, protein)
@@ -220,8 +250,49 @@ shinyServer(function(input, output) {
     })
   })
   
-  output$warningText <- renderText({
-    ""
+  output$heatmapPlot <- renderPlot({
+    input$plot_button
+    isolate({
+      req("heatmap" %in% input$plots)
+      df <- data_filtered()
+      melted_data <- melt(df, id.vars = c("name", "id", "family", "order", "genus"))
+      nutrition_data <- melted_data[melted_data$variable %in% c("calories", "fat", "sugar", "carbohydrates", "protein"),]
+      
+      ggplot(nutrition_data, 
+             aes(x = variable, y = name, fill = value)) +
+        geom_tile() +
+        labs(title = "Heatmap of Nutritional Values Across Fruits", x = "Fruit", y = "Nutritional Element") +
+        theme_minimal()
+    })
+  })
+  
+  output$dataTable <- renderDT({
+    input$plot_button
+    isolate({
+      req("datatab" %in% input$plots)
+      df <- data_filtered()
+      datatable(df, options = list(pageLength = 10))
+    })
+  })
+  
+  output$contingencyTable <- renderTable({
+    input$plot_button
+    isolate({
+      req("contingency" %in% input$plots)
+      df <- data_filtered()
+      #table(df$family, df$order)
+      #summarise(df)
+      df |>
+        summarise(across(where(is.numeric), list(
+          mean = mean,
+          median = median,
+          sd = sd,
+          min = min,
+          max = max
+        ))) |>
+        pivot_longer(cols = everything(), names_to = c("variable", "stat"), names_sep = "_") |>
+        pivot_wider(names_from = stat, values_from = value)
+    })
   })
   
   output$calendarPlot <- renderPlot({
@@ -234,3 +305,4 @@ shinyServer(function(input, output) {
     )
   })
 })
+
