@@ -4,13 +4,44 @@ library(ggplot2)
 library(ggcorrplot)
 library(dplyr)
 library(reshape2)
+library(DT)
 
 shinyServer(function(input, output) {
+  data <- reactiveVal()
+  
+  observeEvent(input$download_button, {
+    response <- httr::GET(input$api_url)
+    if (status_code(response) == 200) {
+      data_df <- fromJSON(content(response, "text")) %>% 
+        unnest_wider(nutritions) %>%
+        filter(name != "Hazelnut")
+      data(data_df)
+    } else {
+      showModal(modalDialog(
+        title = "Error",
+        "Failed to retrieve data."
+      ))
+    }
+  })
+  
+  output$data_table <- renderDT({
+    datatable(data())
+  })
+  
+  output$download_data <- downloadHandler(
+    filename = function() {
+      paste("fruit_data", Sys.Date(), ".csv", sep = "")
+    },
+    content = function(file) {
+      write.csv(data(), file, row.names = FALSE)
+    }
+  )
+  
   data_filtered <- reactive({
     if (input$family == "All") {
-      data
+      data()
     } else {
-      data %>% filter(family == input$family)
+      data() %>% filter(family == input$family)
     }
   })
   
