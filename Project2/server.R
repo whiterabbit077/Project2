@@ -7,6 +7,7 @@ library(reshape2)
 library(DT)
 library(httr)
 library(jsonlite)
+library(calendR)
 
 # Define functions to query the Fruityvice API
 get_all_fruits <- function() {
@@ -138,8 +139,8 @@ shinyServer(function(input, output) {
     
     if (!is.null(data_df)) {
       data_df <- data_df %>%
-        unnest_wider(nutritions) #%>%
-        #filter(name != "Hazelnut")
+        unnest_wider(nutritions) %>%
+        filter(name != "Hazelnut")
       data(data_df)
     } else {
       showModal(modalDialog(
@@ -221,5 +222,15 @@ shinyServer(function(input, output) {
   
   output$warningText <- renderText({
     ""
+  })
+  
+  output$calendarPlot <- renderPlot({
+    current_year <- as.numeric(format(Sys.Date(), "%Y"))
+    current_month <- as.numeric(format(Sys.Date(), "%m"))
+    calendR(
+      year = current_year, 
+      month = current_month,
+      start = "M"
+    )
   })
 })

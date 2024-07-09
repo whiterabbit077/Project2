@@ -3,6 +3,7 @@ library(shiny)
 library(ggplot2)
 library(ggcorrplot)
 library(DT)
+library(calendR)
 
 shinyUI(fluidPage(
   titlePanel("Fruit Nutrition Analysis"),
@@ -43,6 +44,10 @@ shinyUI(fluidPage(
         ),
         actionButton("query_button", "Query API"),
         downloadButton("download_data", "Download Data")
+      ),
+      conditionalPanel(
+        condition = "input.tabs == 'About'",
+        plotOutput("calendarPlot")
       ),
       conditionalPanel(
         condition = "input.tabs == 'Data Exploration'",
