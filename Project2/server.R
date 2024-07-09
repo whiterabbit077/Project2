@@ -176,6 +176,12 @@ shinyServer(function(input, output) {
       plots <- input$plots
       plotOutputs <- list()
       
+      if ("datatab" %in% plots) {
+        plotOutputs <- c(plotOutputs, list(textOutput("Test"), DTOutput("dataTable")))
+      }
+      if ("contingency" %in% plots) {
+        plotOutputs <- c(plotOutputs, list(tableOutput("contingencyTable")))
+      }
       if ("bar" %in% plots) {
         plotOutputs <- c(plotOutputs, list(plotOutput("barPlot")))
       }
@@ -188,14 +194,36 @@ shinyServer(function(input, output) {
       if ("heatmap" %in% plots) {
         plotOutputs <- c(plotOutputs, list(plotOutput("heatmapPlot")))
       }
-      if ("contingency" %in% plots) {
-        plotOutputs <- c(plotOutputs, list(tableOutput("contingencyTable")))
-      }
-      if ("datatab" %in% plots) {
-        plotOutputs <- c(plotOutputs, list(DTOutput("dataTable")))
-      }
-      
       plotOutputs
+    })
+  })
+  
+  output$dataTable <- renderDT({
+    input$plot_button
+    isolate({
+      req("datatab" %in% input$plots)
+      df <- data_filtered()
+      datatable(df, options = list(pageLength = 10))
+    })
+  })
+  
+  output$contingencyTable <- renderTable({
+    input$plot_button
+    isolate({
+      req("contingency" %in% input$plots)
+      df <- data_filtered()
+      #table(df$family, df$order)
+      #summarise(df)
+      df |>
+        summarise(across(where(is.numeric), list(
+          mean = mean,
+          median = median,
+          sd = sd,
+          min = min,
+          max = max
+        ))) |>
+        pivot_longer(cols = everything(), names_to = c("variable", "stat"), names_sep = "_") |>
+        pivot_wider(names_from = stat, values_from = value)
     })
   })
   
@@ -266,34 +294,7 @@ shinyServer(function(input, output) {
     })
   })
   
-  output$dataTable <- renderDT({
-    input$plot_button
-    isolate({
-      req("datatab" %in% input$plots)
-      df <- data_filtered()
-      datatable(df, options = list(pageLength = 10))
-    })
-  })
   
-  output$contingencyTable <- renderTable({
-    input$plot_button
-    isolate({
-      req("contingency" %in% input$plots)
-      df <- data_filtered()
-      #table(df$family, df$order)
-      #summarise(df)
-      df |>
-        summarise(across(where(is.numeric), list(
-          mean = mean,
-          median = median,
-          sd = sd,
-          min = min,
-          max = max
-        ))) |>
-        pivot_longer(cols = everything(), names_to = c("variable", "stat"), names_sep = "_") |>
-        pivot_wider(names_from = stat, values_from = value)
-    })
-  })
   
   output$calendarPlot <- renderPlot({
     current_year <- as.numeric(format(Sys.Date(), "%Y"))

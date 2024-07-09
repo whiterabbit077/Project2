@@ -52,7 +52,7 @@ shinyUI(fluidPage(
       conditionalPanel(
         condition = "input.tabs == 'Data Exploration'",
         checkboxGroupInput("plots", "Select Plots to Display:", 
-                           choices = c("Observed Data" = "datatab",
+                           choices = c("Used Data" = "datatab",
                                        "Summary Stats Table" = "contingency",
                                        "Bar Plot" = "bar", 
                                        "Box Plot" = "box", 
