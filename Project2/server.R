@@ -123,7 +123,7 @@ get_fruits_by_protein <- function(min_protein, max_protein) {
 }
 
 # Define the server logic for the Shiny app
-shinyServer(function(input, output) {
+shinyServer(function(input, output, session) {
   # Reactive value to store the data
   data <- reactiveVal()
   
@@ -417,7 +417,7 @@ shinyServer(function(input, output) {
       df <- data_filtered()
       melted_data <- melt(df, id.vars = c("name", "id", "family", "order", "genus"))
       nutrition_data <- melted_data[melted_data$variable %in% c("calories", "fat", "sugar", "carbohydrates", "protein"),]
-
+      
       ggplot(nutrition_data,
              aes(x = variable, y = name, fill = value)) +
         geom_tile() +
@@ -432,13 +432,13 @@ shinyServer(function(input, output) {
         )
     })
   })
-
+  
   # Render the calendar plot
   output$calendarPlot <- renderPlot({
     current_year <- as.numeric(format(Sys.Date(), "%Y"))
     current_month <- as.numeric(format(Sys.Date(), "%m"))
     current_day <- as.numeric(format(Sys.Date(), "%d"))
-
+    
     calendR(
       year = current_year,
       month = current_month,
@@ -448,3 +448,4 @@ shinyServer(function(input, output) {
     )
   })
 })
+
