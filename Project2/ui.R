@@ -1,22 +1,27 @@
 # ui.R
+#load packages
 library(shiny)
 library(ggplot2)
 library(ggcorrplot)
 library(DT)
 library(calendR)
 
+# Define the UI for the Shiny app
 shinyUI(fluidPage(
-  titlePanel("Fruit Nutrition Analysis"),
+  titlePanel("Fruit Nutrition Analysis"), # Application title
   
   sidebarLayout(
     sidebarPanel(
+      # Conditional panel for the Data Download tab
       conditionalPanel(
         condition = "input.tabs == 'Data Download'",
         selectInput("query_type", "Select Query Type:", choices = c("All Fruits", "Family by Name", "Order by Name", "Genus by Name", "Calories Range", "Fat Range", "Sugar Range", "Carbohydrates Range", "Protein Range")),
+        # Show text input only for specific query types
         conditionalPanel(
           condition = "input.query_type != 'All Fruits' && input.query_type != 'Calories Range' && input.query_type != 'Fat Range' && input.query_type != 'Sugar Range' && input.query_type != 'Carbohydrates Range' && input.query_type != 'Protein Range'",
           textInput("query_param", "Enter Query Parameter:", value = "")
         ),
+        # Show numeric inputs for range queries
         conditionalPanel(
           condition = "input.query_type == 'Calories Range'",
           numericInput("min_calories", "Min Calories:", value = 0),
@@ -42,13 +47,15 @@ shinyUI(fluidPage(
           numericInput("min_protein", "Min Protein:", value = 0),
           numericInput("max_protein", "Max Protein:", value = 1000)
         ),
-        actionButton("query_button", "Query API"),
-        downloadButton("download_data", "Download Data")
+        actionButton("query_button", "Query API"), # Button to query the API
+        downloadButton("download_data", "Download Data") # Button to download data
       ),
+      # Conditional panel for the About tab
       conditionalPanel(
         condition = "input.tabs == 'About'",
-        plotOutput("calendarPlot")
+        plotOutput("calendarPlot")  # Display calendar plot
       ),
+      # Conditional panel for the Data Exploration tab
       conditionalPanel(
         condition = "input.tabs == 'Data Exploration'",
         checkboxGroupInput("plots", "Select Plots to Display:", 
@@ -59,14 +66,14 @@ shinyUI(fluidPage(
                                        "Correlation Plot" = "corr",
                                        "Heatmap" = "heatmap"
                            )),
-        selectInput("family", "Select Family:", choices = c("All", unique(data$family))),
-        actionButton("plot_button", "Generate Plots")
+        uiOutput("familyInput"), # Dynamic UI for family selection
+        actionButton("plot_button", "Generate Plots") # Button to generate plots
       )
     ),
     
     mainPanel(
       tabsetPanel(
-        id = "tabs",
+        id = "tabs", # Tabset panel for different views
         
         tabPanel("About", 
                  h4("About the App"),
@@ -82,13 +89,13 @@ shinyUI(fluidPage(
         ),
         
         tabPanel("Data Download", 
-                 DTOutput("data_table")
+                 DTOutput("data_table") # Display data table
         ),
         
         tabPanel("Data Exploration",
                  conditionalPanel(
                    condition = "input.plot_button > 0",
-                   uiOutput("selectedPlots")
+                   uiOutput("selectedPlots") # Display selected plots
                  )
         )
       )

@@ -1,4 +1,5 @@
 # server.R
+#load libraries
 library(shiny)
 library(ggplot2)
 library(ggcorrplot)
@@ -9,8 +10,6 @@ library(httr)
 library(jsonlite)
 library(calendR)
 library(ggrepel)
-
-#data taken from: https://www.fruityvice.com/#3
 
 # Define functions to query the Fruityvice API
 get_all_fruits <- function() {
@@ -112,14 +111,17 @@ get_fruits_by_protein <- function(min_protein, max_protein) {
   }
 }
 
-shinyServer(function(input, output) {
-  data <- reactiveVal()
-
+# Define the server logic for the Shiny app
+shinyServer(function(input, output, session) {
+  # Reactive value to store the fruit data
+  fruit_data <- reactiveVal()
+  
+  # Observe the query button and fetch data from the API based on the query type
   observeEvent(input$query_button, {
     query_type <- input$query_type
     query_param <- input$query_param
     data_df <- NULL
-
+    
     if (query_type == "All Fruits") {
       data_df <- get_all_fruits()
     } else if (query_type == "Family by Name") {
@@ -139,53 +141,59 @@ shinyServer(function(input, output) {
     } else if (query_type == "Protein Range") {
       data_df <- get_fruits_by_protein(input$min_protein, input$max_protein)
     }
-
+    
     if (!is.null(data_df)) {
+      # Unnest the nutrition data from the API response
       data_df <- data_df %>%
         unnest_wider(nutritions)
-      data(data_df)
+      fruit_data(data_df)
     } else {
+      # Show an error modal if data retrieval fails
       showModal(modalDialog(
         title = "Error",
         "Failed to retrieve data."
       ))
     }
   })
-
+  
+  # Render the data table
   output$data_table <- renderDT({
-    datatable(data())
+    datatable(fruit_data())
   })
-
+  
+  # Download handler for the data
   output$download_data <- downloadHandler(
     filename = function() {
       paste("fruit_data", Sys.Date(), ".csv", sep = "")
     },
     content = function(file) {
-      write.csv(data(), file, row.names = FALSE)
+      write.csv(fruit_data(), file, row.names = FALSE)
     }
   )
-
+  
+  # Filter data based on selected family
   data_filtered <- reactive({
     if (input$family == "All") {
-      data()
+      fruit_data()
     } else {
-      data() %>% filter(family == input$family)
+      fruit_data() %>% filter(family == input$family)
     }
   })
-
+  
+  # Render UI for selected plots
   output$selectedPlots <- renderUI({
     input$plot_button
     isolate({
       plots <- input$plots
       plotOutputs <- list()
-
+      
       if ("datatab" %in% plots) {
         plotOutputs <- c(plotOutputs, list(h4("Selected Data Table"),
                                            DTOutput("dataTable"),
                                            br()))
       }
       if ("contingency" %in% plots) {
-        plotOutputs <- c(plotOutputs, list(h4("Statisitcs for Selected Data"),
+        plotOutputs <- c(plotOutputs, list(h4("Statistics for Selected Data"),
                                            tableOutput("contingencyTable"),
                                            br()))
       }
@@ -212,7 +220,8 @@ shinyServer(function(input, output) {
       plotOutputs
     })
   })
-
+  
+  # Render the data table in the Data Exploration tab
   output$dataTable <- renderDT({
     input$plot_button
     isolate({
@@ -221,14 +230,13 @@ shinyServer(function(input, output) {
       datatable(df, options = list(pageLength = 10))
     })
   })
-
+  
+  # Render the summary statistics table
   output$contingencyTable <- renderTable({
     input$plot_button
     isolate({
       req("contingency" %in% input$plots)
       df <- data_filtered()
-      #table(df$family, df$order)
-      #summarise(df)
       df |>
         select(-id) |>
         summarise(across(where(is.numeric), list(
@@ -242,7 +250,8 @@ shinyServer(function(input, output) {
         pivot_wider(names_from = stat, values_from = value)
     })
   })
-
+  
+  # Render the bar plot
   output$barPlot <- renderPlot({
     input$plot_button
     isolate({
@@ -250,7 +259,7 @@ shinyServer(function(input, output) {
       df <- data_filtered()
       melted_data <- melt(df, id.vars = c("name", "id", "family", "order", "genus"))
       nutrition_data <- melted_data[melted_data$variable %in% c("calories", "fat", "sugar", "carbohydrates", "protein"),]
-
+      
       ggplot(nutrition_data,
              aes(x = name, y = value, fill = variable)) +
         geom_bar(stat = "identity") +
@@ -269,13 +278,13 @@ shinyServer(function(input, output) {
     })
   })
   
+  # Render the box plot
   output$boxPlot <- renderPlot({
     input$plot_button
     isolate({
       req("box" %in% input$plots)
       df <- data_filtered()
       
-      # Ensure data is not empty
       if (nrow(df) == 0) {
         showModal(modalDialog(
           title = "Error",
@@ -284,7 +293,6 @@ shinyServer(function(input, output) {
         return(NULL)
       }
       
-      # Melt the data
       melted_data <- tryCatch({
         melt(df, id.vars = c("name", "id", "family", "order", "genus"))
       }, error = function(e) {
@@ -297,14 +305,12 @@ shinyServer(function(input, output) {
       
       if (is.null(melted_data)) return(NULL)
       
-      # Filter the melted data
       nutrition_data <- melted_data[melted_data$variable %in% c("calories", "fat", "sugar", "carbohydrates", "protein"),]
       
-      # Generate the plot
       p <- tryCatch({
         ggplot(nutrition_data, aes(x = variable, y = value, fill = variable)) +
-          geom_boxplot(outlier.shape = NA) +  # Remove default outliers
-          geom_jitter(width = 0.2, height = 0) +  # Add jitter for better visibility
+          geom_boxplot(outlier.shape = NA) + 
+          geom_jitter(width = 0.2, height = 0) + 
           labs(title = "Distribution of Nutritional Values Across Selected Fruits", x = "Nutritional Element", y = "Value") +
           theme_minimal() +
           theme(
@@ -326,7 +332,6 @@ shinyServer(function(input, output) {
       
       if (is.null(p)) return(NULL)
       
-      # Calculate the outliers
       outliers <- tryCatch({
         nutrition_data %>%
           group_by(variable) %>%
@@ -344,8 +349,7 @@ shinyServer(function(input, output) {
         ))
         return(NULL)
       })
-      
-      # Add text labels to outliers
+
       if (nrow(outliers) > 0) {
         p <- p + geom_text_repel(data = outliers, aes(label = name), vjust = -0.5, size = 4, color = "red", max.overlaps = Inf)
       }
@@ -353,7 +357,8 @@ shinyServer(function(input, output) {
       print(p)
     })
   })
-
+  
+  # Render the correlation plot
   output$corrPlot <- renderPlot({
     input$plot_button
     isolate({
@@ -362,7 +367,7 @@ shinyServer(function(input, output) {
       if (nrow(df) > 1) {
         numeric_data <- df %>% select(calories, fat, sugar, carbohydrates, protein)
         corr_matrix <- cor(numeric_data, use = "complete.obs")
-
+        
         ggcorrplot(corr_matrix, method = "circle") +
           labs(title = "Nutritional Values Across Selected Fruits") +
           theme(
@@ -379,7 +384,8 @@ shinyServer(function(input, output) {
       }
     })
   })
-
+  
+  # Render the heatmap plot
   output$heatmapPlot <- renderPlot({
     input$plot_button
     isolate({
@@ -387,7 +393,7 @@ shinyServer(function(input, output) {
       df <- data_filtered()
       melted_data <- melt(df, id.vars = c("name", "id", "family", "order", "genus"))
       nutrition_data <- melted_data[melted_data$variable %in% c("calories", "fat", "sugar", "carbohydrates", "protein"),]
-
+      
       ggplot(nutrition_data,
              aes(x = variable, y = name, fill = value)) +
         geom_tile() +
@@ -402,7 +408,8 @@ shinyServer(function(input, output) {
         )
     })
   })
-
+  
+  # Render the calendar plot in the About tab
   output$calendarPlot <- renderPlot({
     current_year <- as.numeric(format(Sys.Date(), "%Y"))
     current_month <- as.numeric(format(Sys.Date(), "%m"))
@@ -416,6 +423,9 @@ shinyServer(function(input, output) {
       start = "M"
     )
   })
+  
+  # Dynamic UI for family selection
+  output$familyInput <- renderUI({
+    selectInput("family", "Select Family:", choices = c("All", unique(fruit_data()$family)))
+  })
 })
-
-
