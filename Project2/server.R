@@ -177,22 +177,34 @@ shinyServer(function(input, output) {
       plotOutputs <- list()
       
       if ("datatab" %in% plots) {
-        plotOutputs <- c(plotOutputs, list(textOutput("Test"), DTOutput("dataTable")))
+        plotOutputs <- c(plotOutputs, list(h4("Selected Data Table"), 
+                                           DTOutput("dataTable"),
+                                           br()))
       }
       if ("contingency" %in% plots) {
-        plotOutputs <- c(plotOutputs, list(tableOutput("contingencyTable")))
+        plotOutputs <- c(plotOutputs, list(h4("Statisitcs for Selected Data"),
+                                           tableOutput("contingencyTable"),
+                                           br()))
       }
       if ("bar" %in% plots) {
-        plotOutputs <- c(plotOutputs, list(plotOutput("barPlot")))
+        plotOutputs <- c(plotOutputs, list(h4("Bar Plot"),
+                                           plotOutput("barPlot"),
+                                           br()))
       }
       if ("box" %in% plots) {
-        plotOutputs <- c(plotOutputs, list(plotOutput("boxPlot")))
+        plotOutputs <- c(plotOutputs, list(h4("Box Plot"),
+                                           plotOutput("boxPlot"),
+                                           br()))
       }
       if ("corr" %in% plots) {
-        plotOutputs <- c(plotOutputs, list(plotOutput("corrPlot")))
+        plotOutputs <- c(plotOutputs, list(h4("Correlation Plot"),
+                                           plotOutput("corrPlot"),
+                                           br()))
       }
       if ("heatmap" %in% plots) {
-        plotOutputs <- c(plotOutputs, list(plotOutput("heatmapPlot")))
+        plotOutputs <- c(plotOutputs, list(h4("Heatmap"),
+                                           plotOutput("heatmapPlot"),
+                                           br()))
       }
       plotOutputs
     })
@@ -306,4 +318,3 @@ shinyServer(function(input, output) {
     )
   })
 })
-
