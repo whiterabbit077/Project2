@@ -11,6 +11,7 @@ library(calendR)
 library(ggrepel)
 
 #data taken from: https://www.fruityvice.com/#3
+
 # Define functions to query the Fruityvice API
 get_all_fruits <- function() {
   url <- "https://www.fruityvice.com/api/fruit/all"
@@ -242,23 +243,6 @@ shinyServer(function(input, output) {
     })
   })
 
-  # output$barPlot <- renderPlot({
-  #   input$plot_button
-  #   isolate({
-  #     req("bar" %in% input$plots)
-  #     df <- data_filtered()
-  #     melted_data <- melt(df, id.vars = c("name", "id", "family", "order", "genus"))
-  #     nutrition_data <- melted_data[melted_data$variable %in% c("calories", "fat", "sugar", "carbohydrates", "protein"),]
-  #
-  #     ggplot(nutrition_data,
-  #            aes(x = name, y = value, fill = variable)) +
-  #       geom_bar(stat = "identity") +
-  #       labs(title = "Nutritional Composition of Fruits", x = "Fruit", y = "Nutritional Value") +
-  #       theme_minimal() +
-  #       coord_flip()
-  #   })
-  # })
-
   output$barPlot <- renderPlot({
     input$plot_button
     isolate({
@@ -284,63 +268,82 @@ shinyServer(function(input, output) {
         coord_flip()
     })
   })
-
-  # output$boxPlot <- renderPlot({
-  #   input$plot_button
-  #   isolate({
-  #     req("box" %in% input$plots)
-  #     df <- data_filtered()
-  #     melted_data <- melt(df, id.vars = c("name", "id", "family", "order", "genus"))
-  #     nutrition_data <- melted_data[melted_data$variable %in% c("calories", "fat", "sugar", "carbohydrates", "protein"),]
-  # 
-  #     ggplot(nutrition_data,
-  #            aes(x = variable, y = value, fill = variable)) +
-  #       geom_boxplot() +
-  #       labs(title = "Distribution of Nutritional Values Across Selected Fruits", x = "Nutritional Element", y = "Value") +
-  #       theme_minimal() +
-  #       theme(
-  #         plot.title = element_text(size = 20, face = "bold"),
-  #         axis.title.x = element_text(size = 16),
-  #         axis.title.y = element_text(size = 16),
-  #         axis.text.x = element_text(size = 14),
-  #         axis.text.y = element_text(size = 14),
-  #         legend.title = element_text(size = 16),
-  #         legend.text = element_text(size = 14)
-  #       )
-  #   })
-  # })
   
   output$boxPlot <- renderPlot({
     input$plot_button
     isolate({
       req("box" %in% input$plots)
       df <- data_filtered()
-      melted_data <- melt(df, id.vars = c("name", "id", "family", "order", "genus"))
+      
+      # Ensure data is not empty
+      if (nrow(df) == 0) {
+        showModal(modalDialog(
+          title = "Error",
+          "No data available to generate the box plot."
+        ))
+        return(NULL)
+      }
+      
+      # Melt the data
+      melted_data <- tryCatch({
+        melt(df, id.vars = c("name", "id", "family", "order", "genus"))
+      }, error = function(e) {
+        showModal(modalDialog(
+          title = "Error",
+          paste("Error in melting data:", e$message)
+        ))
+        return(NULL)
+      })
+      
+      if (is.null(melted_data)) return(NULL)
+      
+      # Filter the melted data
       nutrition_data <- melted_data[melted_data$variable %in% c("calories", "fat", "sugar", "carbohydrates", "protein"),]
       
-      p <- ggplot(nutrition_data, aes(x = variable, y = value, fill = variable)) +
-        geom_boxplot(outlier.shape = NA) +  # Remove default outliers
-        geom_jitter(width = 0.2, height = 0) +  # Add jitter for better visibility
-        labs(title = "Distribution of Nutritional Values Across Selected Fruits", x = "Nutritional Element", y = "Value") +
-        theme_minimal() +
-        theme(
-          plot.title = element_text(size = 19, face = "bold"),
-          axis.title.x = element_text(size = 16),
-          axis.title.y = element_text(size = 16),
-          axis.text.x = element_text(size = 14),
-          axis.text.y = element_text(size = 14),
-          legend.title = element_text(size = 16),
-          legend.text = element_text(size = 14)
-        )
+      # Generate the plot
+      p <- tryCatch({
+        ggplot(nutrition_data, aes(x = variable, y = value, fill = variable)) +
+          geom_boxplot(outlier.shape = NA) +  # Remove default outliers
+          geom_jitter(width = 0.2, height = 0) +  # Add jitter for better visibility
+          labs(title = "Distribution of Nutritional Values Across Selected Fruits", x = "Nutritional Element", y = "Value") +
+          theme_minimal() +
+          theme(
+            plot.title = element_text(size = 19, face = "bold"),
+            axis.title.x = element_text(size = 16),
+            axis.title.y = element_text(size = 16),
+            axis.text.x = element_text(size = 14),
+            axis.text.y = element_text(size = 14),
+            legend.title = element_text(size = 16),
+            legend.text = element_text(size = 14)
+          )
+      }, error = function(e) {
+        showModal(modalDialog(
+          title = "Error",
+          paste("Error in creating plot:", e$message)
+        ))
+        return(NULL)
+      })
+      
+      if (is.null(p)) return(NULL)
       
       # Calculate the outliers
-      outliers <- nutrition_data %>%
-        group_by(variable) %>%
-        mutate(Q1 = quantile(value, 0.25),
-               Q3 = quantile(value, 0.75),
-               IQR = IQR(value),
-               is_outlier = value > (Q3 + 1.5 * IQR) | value < (Q1 - 1.5 * IQR)) %>%
-        filter(is_outlier)
+      outliers <- tryCatch({
+        nutrition_data %>%
+          group_by(variable) %>%
+          mutate(
+            Q1 = quantile(value, 0.25, na.rm = TRUE),
+            Q3 = quantile(value, 0.75, na.rm = TRUE),
+            IQR = IQR(value, na.rm = TRUE),
+            is_outlier = value > (Q3 + 1.5 * IQR) | value < (Q1 - 1.5 * IQR)
+          ) %>%
+          filter(is_outlier)
+      }, error = function(e) {
+        showModal(modalDialog(
+          title = "Error",
+          paste("Error in calculating outliers:", e$message)
+        ))
+        return(NULL)
+      })
       
       # Add text labels to outliers
       if (nrow(outliers) > 0) {
@@ -350,7 +353,6 @@ shinyServer(function(input, output) {
       print(p)
     })
   })
-  
 
   output$corrPlot <- renderPlot({
     input$plot_button
