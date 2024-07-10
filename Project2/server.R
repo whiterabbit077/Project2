@@ -8,7 +8,9 @@ library(DT)
 library(httr)
 library(jsonlite)
 library(calendR)
+library(ggrepel)
 
+#data taken from: https://www.fruityvice.com/#3
 # Define functions to query the Fruityvice API
 get_all_fruits <- function() {
   url <- "https://www.fruityvice.com/api/fruit/all"
@@ -111,12 +113,12 @@ get_fruits_by_protein <- function(min_protein, max_protein) {
 
 shinyServer(function(input, output) {
   data <- reactiveVal()
-  
+
   observeEvent(input$query_button, {
     query_type <- input$query_type
     query_param <- input$query_param
     data_df <- NULL
-    
+
     if (query_type == "All Fruits") {
       data_df <- get_all_fruits()
     } else if (query_type == "Family by Name") {
@@ -136,10 +138,10 @@ shinyServer(function(input, output) {
     } else if (query_type == "Protein Range") {
       data_df <- get_fruits_by_protein(input$min_protein, input$max_protein)
     }
-    
+
     if (!is.null(data_df)) {
       data_df <- data_df %>%
-        unnest_wider(nutritions) 
+        unnest_wider(nutritions)
       data(data_df)
     } else {
       showModal(modalDialog(
@@ -148,11 +150,11 @@ shinyServer(function(input, output) {
       ))
     }
   })
-  
+
   output$data_table <- renderDT({
     datatable(data())
   })
-  
+
   output$download_data <- downloadHandler(
     filename = function() {
       paste("fruit_data", Sys.Date(), ".csv", sep = "")
@@ -161,7 +163,7 @@ shinyServer(function(input, output) {
       write.csv(data(), file, row.names = FALSE)
     }
   )
-  
+
   data_filtered <- reactive({
     if (input$family == "All") {
       data()
@@ -169,15 +171,15 @@ shinyServer(function(input, output) {
       data() %>% filter(family == input$family)
     }
   })
-  
+
   output$selectedPlots <- renderUI({
     input$plot_button
     isolate({
       plots <- input$plots
       plotOutputs <- list()
-      
+
       if ("datatab" %in% plots) {
-        plotOutputs <- c(plotOutputs, list(h4("Selected Data Table"), 
+        plotOutputs <- c(plotOutputs, list(h4("Selected Data Table"),
                                            DTOutput("dataTable"),
                                            br()))
       }
@@ -209,7 +211,7 @@ shinyServer(function(input, output) {
       plotOutputs
     })
   })
-  
+
   output$dataTable <- renderDT({
     input$plot_button
     isolate({
@@ -218,7 +220,7 @@ shinyServer(function(input, output) {
       datatable(df, options = list(pageLength = 10))
     })
   })
-  
+
   output$contingencyTable <- renderTable({
     input$plot_button
     isolate({
@@ -227,6 +229,7 @@ shinyServer(function(input, output) {
       #table(df$family, df$order)
       #summarise(df)
       df |>
+        select(-id) |>
         summarise(across(where(is.numeric), list(
           mean = mean,
           median = median,
@@ -238,7 +241,24 @@ shinyServer(function(input, output) {
         pivot_wider(names_from = stat, values_from = value)
     })
   })
-  
+
+  # output$barPlot <- renderPlot({
+  #   input$plot_button
+  #   isolate({
+  #     req("bar" %in% input$plots)
+  #     df <- data_filtered()
+  #     melted_data <- melt(df, id.vars = c("name", "id", "family", "order", "genus"))
+  #     nutrition_data <- melted_data[melted_data$variable %in% c("calories", "fat", "sugar", "carbohydrates", "protein"),]
+  #
+  #     ggplot(nutrition_data,
+  #            aes(x = name, y = value, fill = variable)) +
+  #       geom_bar(stat = "identity") +
+  #       labs(title = "Nutritional Composition of Fruits", x = "Fruit", y = "Nutritional Value") +
+  #       theme_minimal() +
+  #       coord_flip()
+  #   })
+  # })
+
   output$barPlot <- renderPlot({
     input$plot_button
     isolate({
@@ -246,15 +266,49 @@ shinyServer(function(input, output) {
       df <- data_filtered()
       melted_data <- melt(df, id.vars = c("name", "id", "family", "order", "genus"))
       nutrition_data <- melted_data[melted_data$variable %in% c("calories", "fat", "sugar", "carbohydrates", "protein"),]
-      
-      ggplot(nutrition_data, 
+
+      ggplot(nutrition_data,
              aes(x = name, y = value, fill = variable)) +
         geom_bar(stat = "identity") +
-        labs(title = "Nutritional Composition of Fruits", x = "Fruit", y = "Nutritional Value") +
+        labs(title = "Nutritional Composition of Selected Fruits", x = "Fruit", y = "Nutritional Value") +
         theme_minimal() +
+        theme(
+          plot.title = element_text(size = 19, face = "bold"),
+          axis.title.x = element_text(size = 16),
+          axis.title.y = element_text(size = 16),
+          axis.text.x = element_text(size = 14),
+          axis.text.y = element_text(size = 14),
+          legend.title = element_text(size = 16),
+          legend.text = element_text(size = 14)
+        ) +
         coord_flip()
     })
   })
+
+  # output$boxPlot <- renderPlot({
+  #   input$plot_button
+  #   isolate({
+  #     req("box" %in% input$plots)
+  #     df <- data_filtered()
+  #     melted_data <- melt(df, id.vars = c("name", "id", "family", "order", "genus"))
+  #     nutrition_data <- melted_data[melted_data$variable %in% c("calories", "fat", "sugar", "carbohydrates", "protein"),]
+  # 
+  #     ggplot(nutrition_data,
+  #            aes(x = variable, y = value, fill = variable)) +
+  #       geom_boxplot() +
+  #       labs(title = "Distribution of Nutritional Values Across Selected Fruits", x = "Nutritional Element", y = "Value") +
+  #       theme_minimal() +
+  #       theme(
+  #         plot.title = element_text(size = 20, face = "bold"),
+  #         axis.title.x = element_text(size = 16),
+  #         axis.title.y = element_text(size = 16),
+  #         axis.text.x = element_text(size = 14),
+  #         axis.text.y = element_text(size = 14),
+  #         legend.title = element_text(size = 16),
+  #         legend.text = element_text(size = 14)
+  #       )
+  #   })
+  # })
   
   output$boxPlot <- renderPlot({
     input$plot_button
@@ -264,14 +318,40 @@ shinyServer(function(input, output) {
       melted_data <- melt(df, id.vars = c("name", "id", "family", "order", "genus"))
       nutrition_data <- melted_data[melted_data$variable %in% c("calories", "fat", "sugar", "carbohydrates", "protein"),]
       
-      ggplot(nutrition_data, 
-             aes(x = variable, y = value, fill = variable)) +
-        geom_boxplot() +
-        labs(title = "Distribution of Nutritional Values Across Fruits", x = "Nutritional Element", y = "Value") +
-        theme_minimal()
+      p <- ggplot(nutrition_data, aes(x = variable, y = value, fill = variable)) +
+        geom_boxplot(outlier.shape = NA) +  # Remove default outliers
+        geom_jitter(width = 0.2, height = 0) +  # Add jitter for better visibility
+        labs(title = "Distribution of Nutritional Values Across Selected Fruits", x = "Nutritional Element", y = "Value") +
+        theme_minimal() +
+        theme(
+          plot.title = element_text(size = 19, face = "bold"),
+          axis.title.x = element_text(size = 16),
+          axis.title.y = element_text(size = 16),
+          axis.text.x = element_text(size = 14),
+          axis.text.y = element_text(size = 14),
+          legend.title = element_text(size = 16),
+          legend.text = element_text(size = 14)
+        )
+      
+      # Calculate the outliers
+      outliers <- nutrition_data %>%
+        group_by(variable) %>%
+        mutate(Q1 = quantile(value, 0.25),
+               Q3 = quantile(value, 0.75),
+               IQR = IQR(value),
+               is_outlier = value > (Q3 + 1.5 * IQR) | value < (Q1 - 1.5 * IQR)) %>%
+        filter(is_outlier)
+      
+      # Add text labels to outliers
+      if (nrow(outliers) > 0) {
+        p <- p + geom_text_repel(data = outliers, aes(label = name), vjust = -0.5, size = 4, color = "red", max.overlaps = Inf)
+      }
+      
+      print(p)
     })
   })
   
+
   output$corrPlot <- renderPlot({
     input$plot_button
     isolate({
@@ -280,8 +360,16 @@ shinyServer(function(input, output) {
       if (nrow(df) > 1) {
         numeric_data <- df %>% select(calories, fat, sugar, carbohydrates, protein)
         corr_matrix <- cor(numeric_data, use = "complete.obs")
-        
-        ggcorrplot(corr_matrix, method = "circle", lab = TRUE)
+
+        ggcorrplot(corr_matrix, method = "circle") +
+          labs(title = "Nutritional Values Across Selected Fruits") +
+          theme(
+            plot.title = element_text(size = 19, face = "bold"),
+            axis.text.x = element_text(size = 14),
+            axis.text.y = element_text(size = 14),
+            legend.title = element_text(size = 16),
+            legend.text = element_text(size = 14)
+          )
       } else {
         output$warningText <- renderText({
           "Not enough data to generate correlation plot for this family."
@@ -289,7 +377,7 @@ shinyServer(function(input, output) {
       }
     })
   })
-  
+
   output$heatmapPlot <- renderPlot({
     input$plot_button
     isolate({
@@ -297,24 +385,35 @@ shinyServer(function(input, output) {
       df <- data_filtered()
       melted_data <- melt(df, id.vars = c("name", "id", "family", "order", "genus"))
       nutrition_data <- melted_data[melted_data$variable %in% c("calories", "fat", "sugar", "carbohydrates", "protein"),]
-      
-      ggplot(nutrition_data, 
+
+      ggplot(nutrition_data,
              aes(x = variable, y = name, fill = value)) +
         geom_tile() +
         labs(title = "Heatmap of Nutritional Values Across Fruits", x = "Fruit", y = "Nutritional Element") +
-        theme_minimal()
+        theme_minimal()  +
+        theme(
+          plot.title = element_text(size = 19, face = "bold"),
+          axis.text.x = element_text(size = 14),
+          axis.text.y = element_text(size = 14),
+          legend.title = element_text(size = 16),
+          legend.text = element_text(size = 14)
+        )
     })
   })
-  
-  
-  
+
   output$calendarPlot <- renderPlot({
     current_year <- as.numeric(format(Sys.Date(), "%Y"))
     current_month <- as.numeric(format(Sys.Date(), "%m"))
+    current_day <- as.numeric(format(Sys.Date(), "%d"))
+    
     calendR(
-      year = current_year, 
+      year = current_year,
       month = current_month,
+      special.days = current_day,
+      special.col = "lightblue",
       start = "M"
     )
   })
 })
+
+
